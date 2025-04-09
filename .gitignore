@@ -172,3 +172,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+test-files/ai-test.py
+test-files/singing-test.py
+test-files/test.py
+test-files/user-input-test.py
+guy.json
