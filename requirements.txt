@@ -5,3 +5,4 @@ rich==14.0.0
 sounddevice==0.5.1
 vosk==0.3.45
 google-genai==1.10.0
+dotenv==0.9.9

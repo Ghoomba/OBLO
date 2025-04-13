@@ -9,6 +9,9 @@ from google.genai import types
 from rich.console import Console           # Text Formatting
 from rich.live import Live
 import re
+from dotenv import load_dotenv
+
+load_dotenv()   # Use a .env for API keys
 
 console = Console()
 listening = True
