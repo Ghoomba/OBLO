@@ -1,0 +1,6 @@
+keyboard==0.13.5
+protobuf==6.30.2
+pyttsx3==2.98
+rich==14.0.0
+sounddevice==0.5.1
+vosk==0.3.45
