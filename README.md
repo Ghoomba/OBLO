@@ -74,7 +74,7 @@ Talk to Oblo. Trust him... or don't.
 ---
 
 ## 🌐 License
-MIT License. See [LICENSE](LICENSE) file for details.
+GPL-3.0 License. See [LICENSE](LICENSE) file for details.
 
 ---
 
