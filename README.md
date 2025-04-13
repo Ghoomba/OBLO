@@ -1,6 +1,3 @@
-# OBLO
-An AI generated clown, with animated ascii, that runs in a terminal window
-
 # Oblo - A AI Clown Voice Assistant
 
 Please welcome **Oblo**, your very own strange, secretive, and slightly unhinged clown assistant. Oblo listens, responds, and even plays games with you using voice interaction. This project combines speech recognition, text-to-speech, rich terminal interfaces, and a dash of generative AI for a unique voice assistant experience that runs purely in terminal.
