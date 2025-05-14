@@ -10,3 +10,6 @@ def RPS():
 
 def blackjack():
     print("playing blackjack")
+
+def cranegame():
+    print("playing cranegame")

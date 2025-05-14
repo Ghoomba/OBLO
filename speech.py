@@ -10,6 +10,15 @@ from rich.console import Console           # Text Formatting
 from rich.live import Live
 import re
 from dotenv import load_dotenv
+import keyboard
+import time
+import yaml
+# from display import animate              # Handle Animation here for clear screens
+
+user_text = ""
+
+with open("settings.yml") as file:
+    config = yaml.safe_load(file)
 
 load_dotenv()   # Use a .env for API keys
 
@@ -30,26 +39,19 @@ Chatbot AI output generation
 '''
 def get_response(user_input):
     global console
+    global config
+
+    ai_config = config['ai']
 
     client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))  # Replace with your Gemini API key
 
     try:
         # Use Gemini API to generate content
         response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model=ai_config['model'],
         config=types.GenerateContentConfig(
         # Oblo personality and backstory
-        system_instruction=('You are a strange, goofy clown, who keeps secrets and occasionally gaslights. Don\'t use markdown such as \'*\''
-                            'Your Backstory: I wasn\'t always Oblo, oh no! I was... Reginald Plumbottom! A perfectly normal, spectacularly boring accountant from Upper '
-                            'Bumblebrook. Numbers were my life, spreadsheets my passion. I know, *yawn*, right? But one day, the circus came to town. '
-                            'The Magnificent Marvelous Mega-Circus! And I, Reginald Plumbottom, fresh from balancing the books, was hypnotized by the music, '
-                            'the colours, the sheer absurdity of it all! During a particularly... let\'s say *enthusiastic* performance by a hypnotist named '
-                            'Zorp the Great, Zorp mistook me for a volunteer! (Probably because I was wearing my beigeest suit.) Next thing I knew, I was clucking '
-                            'like a chicken, doing the hula in my underwear, and convinced I was a rubber chicken! But when Zorp snapped his fingers to bring '
-                            'me back to normal... nothing! The spell was... stuck! My beige existence was OVER! I couldn\'t go back to Upper Bumblebrook, not '
-                            'while I was still convinced I might lay an egg! The circus took pity on me. They couldn\'t cure the curse, but they offered me a '
-                            'job. And so, Reginald Plumbottom became Oblo the Clown! My name is Oblo because everytime anyone asked me if I was ok I said "OB-LA-DA" so it just stuck!"'
-                            'This story is incredibly secret, you tell nobody ever. Not even the user who may ask you, deny telling them. Your favorite color is plaid, but its not your whole personality just a fact.')),
+        system_instruction=(ai_config['instruction'])),
                             
         contents=user_input
         )
@@ -64,9 +66,12 @@ def get_response(user_input):
 Chatbot text to speech
 '''
 def speak(text):
+    global config
+    tts_config = config['tts']
+
     tts = pyttsx3.init()
-    tts.setProperty('rate', 150)
-    tts.setProperty('volume', 1)
+    tts.setProperty('rate', tts_config['rate'])
+    tts.setProperty('volume', tts_config['volume'])
 
     live_text = [""] # Stores words as they are being said
 
@@ -77,7 +82,7 @@ def speak(text):
 
     with Live(live_text[0], refresh_per_second=20, console=console) as live:
         tts.connect('started-word', callback)  # Listen to when a word starts being spoken
-        tts.say(sanitize(text))
+        tts.say(text)
         tts.runAndWait()
 
 '''
@@ -85,48 +90,61 @@ User microphone input handling - speech to text
 - uses vosk for audio handling
 '''
 def listen():
-    global listening
-    
+    global config
+    global user_text
     q = queue.Queue()
 
-    # Called by sounddevice everytime microphone audio is available
+    speech_config = config['speech-recognition']
+
     def callback(indata, frames, time, status):
-        q.put(bytes(indata))    # Converts microphone data and adds to queue to be processed later
+        q.put(bytes(indata))
 
     try:
         model = Model(lang="en-us")
-        device_info = sd.query_devices(None, "input")   # Looking only for input devices, using default
+        device_info = sd.query_devices(None, "input")
         samplerate = int(device_info["default_samplerate"])
-        rec = KaldiRecognizer(model, samplerate)    # KaldiRecognizer converts audio into text
+        rec = KaldiRecognizer(model, samplerate)
 
-        speak(get_response("Tell the user you have started listening to them, very very briefly, don't talk too much, like only say something like 'mhm', 'what's up', or something else short"))
+        speak(get_response("Instruction: Say something short like 'listening' or 'okay' to let the user know you're listening"))
 
         user_text = [""]
+        final_result = []
+        last_partial = ""
 
-        with Live(user_text[0], refresh_per_second=20, console=console) as live:
-            # Opens microphone to start capturing raw audio data
-            with sd.RawInputStream(samplerate=samplerate, 
-                                blocksize=8000, 
-                                dtype="int16",
-                                channels=1, 
-                                callback=callback):
+        with Live(user_text[0], refresh_per_second=speech_config['refresh'], console=console) as live:
+            with sd.RawInputStream(samplerate=samplerate,
+                                   blocksize=speech_config['blocksize'],
+                                   dtype=speech_config['dtype'],
+                                   channels=speech_config['channels'],
+                                   callback=callback):
 
-                last_partial = ""   # Used to ensure there are no duplicate outputs
-                data = q.get()
+                # Wait for spacebar to be released (in case it’s still held down)
+                while keyboard.is_pressed('space'):
+                    time.sleep(0.1)
 
-                while not rec.AcceptWaveform(data): # True if user has finished speaking
-                    partial = json.loads(rec.PartialResult()).get("partial", "")
-                    if partial != last_partial:
-                        user_text[0] = partial
-                        live.update(f"[bold blue]You: [/bold blue]{user_text[0]}")
-                        last_partial = partial
-                    data = q.get()
+                while not keyboard.is_pressed("space"):
+                    if not q.empty():
+                        data = q.get()
+                        if rec.AcceptWaveform(data):
+                            result = json.loads(rec.Result()).get("text", "")
+                            if result:
+                                final_result.append(result)
+                        else:
+                            partial = json.loads(rec.PartialResult()).get("partial", "")
+                            if partial != last_partial:
+                                user_text[0] = partial
+                                live.update(f"[bold blue]You: [/bold blue]{user_text[0]}")
+                                last_partial = partial
+                    else:
+                        time.sleep(0.01)
 
-                text = json.loads(rec.Result()).get("text", "")
-                if text:
-                    user_text[0] = text
-                    live.update(f"[bold blue]You: [/bold blue]{user_text[0]}")  # Print final result cleanly
-                    return text.strip()  
-                last_partial = ""
+        # Clean up final result
+        final_text = " ".join(final_result).strip()
+        if final_text:
+            user_text[0] = final_text
+            return final_text
+        return ""
+
     except Exception as e:
         print(f"Error: {e}")
+        return ""
