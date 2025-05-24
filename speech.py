@@ -17,6 +17,7 @@ import yaml
 
 user_text = ""
 
+# Load the config file
 with open("settings.yml") as file:
     config = yaml.safe_load(file)
 
@@ -25,46 +26,63 @@ load_dotenv()   # Use a .env for API keys
 console = Console()
 listening = True
 
-def sanitize(text):
-    # Remove or replace unwanted characters
-    text = re.sub(r"[*\\_/`~^]", "", text)      # Remove markdown/formatting symbols
-    text = text.replace("•", "-")              # Replace bullets
-    text = text.replace("→", "to")             # Optional: arrow symbols
-    text = re.sub(r"\s+", " ", text)           # Collapse excessive spaces
+ai_config = config['ai']
+history = []    # Dictionary of current sessions chat history | {role: oblo/user, content: msg}
 
-    return text.strip()
+# MESSAGE HISTORY HANDLING
+class History:
+    # MESSAGE HISTORY STR CONVERSION #
+    def to_string(history: dict):
+        converted_history = ''
 
-'''
-Chatbot AI output generation
-'''
-def get_response(user_input):
-    global console
-    global config
+        for msg in history:
+            match msg['role']:
+                case 'instruction':
+                    converted_history += f'Instruction: {msg['content']}\n'
+                case 'user':
+                    converted_history += f"User: {msg['content']}\n"
+                case 'oblo':
+                    converted_history += f"Oblo: {msg['content']}\n"
 
-    ai_config = config['ai']
+        converted_history += "Oblo: "
 
+        return converted_history  # Return the history dictionary as a string
+
+    # ADD TO HISTORY
+    def add(role: str, text: str):
+        match role:
+            case 'user':
+                history.append({'role': 'user', 'content': f"{text}\n"})
+            case 'oblo':
+                history.append({'role': 'oblo', 'content': f"{text}\n"}) 
+            case 'instruction':
+                history.append({'role': 'oblo', 'content': f"{text}\n"})
+
+        return text
+            
+            
+# AI OUTPUT GENERATION
+def get_response():
     client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))  # Replace with your Gemini API key
 
     try:
         # Use Gemini API to generate content
         response = client.models.generate_content(
-        model=ai_config['model'],
-        config=types.GenerateContentConfig(
-        # Oblo personality and backstory
-        system_instruction=(ai_config['instruction'])),
-                            
-        contents=user_input
+            model=ai_config['model'],
+            config=types.GenerateContentConfig(
+                system_instruction=(ai_config['instruction'])), # Oblo personality and backstory
+            contents=History.to_string(history)
         )
         
         # Extract the response text from Gemini API response
-        ai_response = response.text.strip()  
+        ai_response = response.text.strip()
+
         return ai_response
     except Exception as e:
         return "Sorry, I couldn't process that request."
 
-'''
-Chatbot text to speech
-'''
+
+# TEXT TO SPEECH #
 def speak(text):
     global config
     tts_config = config['tts']
@@ -78,7 +96,7 @@ def speak(text):
     # Use a callback function to update live_text
     def callback(name, location, length):
         live_text[0] = text[:location+length]
-        live.update(f"[bold yellow]Oblo: [/bold yellow]{live_text[0]}")
+        live.update(f"[bold yellow]Oblo: [/bold yellow]{live_text[0]}\n")
 
     with Live(live_text[0], refresh_per_second=20, console=console) as live:
         tts.connect('started-word', callback)  # Listen to when a word starts being spoken
@@ -105,7 +123,9 @@ def listen():
         samplerate = int(device_info["default_samplerate"])
         rec = KaldiRecognizer(model, samplerate)
 
-        speak(get_response("Instruction: Say something short like 'listening' or 'okay' to let the user know you're listening"))
+        history.append({'role': 'instruction', 'content': 'Say something short like \'listening\' or \'okay\' to let the user know you\'re listening\n'})
+        
+        speak(history.append({'role': 'oblo', 'content': f"{get_response()}\n"}))
 
         user_text = [""]
         final_result = []
@@ -148,3 +168,40 @@ def listen():
     except Exception as e:
         print(f"Error: {e}")
         return ""
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+def sanitize(text):
+    # Remove or replace unwanted characters
+    text = re.sub(r"[*\\_/`~^]", "", text)      # Remove markdown/formatting symbols
+    text = text.replace("•", "-")              # Replace bullets
+    text = text.replace("→", "to")             # Optional: arrow symbols
+    text = re.sub(r"\s+", " ", text)           # Collapse excessive spaces
+
+    return text.strip()

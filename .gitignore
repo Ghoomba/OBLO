@@ -178,3 +178,5 @@ test-files/singing-test.py
 test-files/test.py
 test-files/user-input-test.py
 guy.json
+/log
+Llama-3.2-3B-Instruct-Q4_0.gguf
